@@ -4,6 +4,7 @@ import { useRef, useMemo, useState, useEffect, Suspense } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Html, Text } from "@react-three/drei";
 import * as THREE from "three";
+import { categorizeSemantic, type SemanticCluster, type SemanticSubCategory, type SemanticSubSubCategory } from "@/lib/semantic-categories";
 
 type Tier = "working" | "stm" | "episodic" | "semantic" | "ltm" | "training";
 
@@ -98,11 +99,90 @@ const TIER_REGIONS: Record<Tier, THREE.Vector3> = {
 
 const MAX_NODES = 250;
 const MAX_EDGES = 350;
+const SEMANTIC_CLUSTER_PREFIX = "semantic-cat-";
+
+function isClusterNode(node: GraphNode): boolean {
+  return node.id.startsWith(SEMANTIC_CLUSTER_PREFIX);
+}
+
+function makeClusterNode(cluster: SemanticCluster): GraphNode {
+  return {
+    id: cluster.id,
+    label: cluster.name,
+    type: "cluster",
+    tier: "semantic",
+    content: `${cluster.count} neurons across ${cluster.subCategories.length} sub-categories`,
+    tags: [],
+    entities: [],
+    createdAt: "",
+    accessCount: 0,
+    recallCount: cluster.count,
+    decayFactor: 1,
+    dormant: false,
+    confidence: 1,
+    baseImportance: Math.min(1, 0.5 + cluster.count * 0.003),
+    consolidationLevel: 0,
+    mergedFromCount: 0,
+    usefulCount: 0,
+    rejectedCount: 0,
+    usefulnessScore: 1,
+    sessionMarker: null,
+    sessionTask: undefined,
+    valid: true,
+    source: "semantic-cluster",
+  };
+}
+
+function sampleNodes(snapshot: GraphSnapshot): GraphNode[] {
+  const byTier: Record<string, GraphNode[]> = {};
+  for (const n of snapshot.nodes) {
+    const t = n.tier || "ltm";
+    if (!byTier[t]) byTier[t] = [];
+    byTier[t].push(n);
+  }
+
+  const result: GraphNode[] = [];
+
+  const semanticNodes = byTier["semantic"] || [];
+  const otherTotal = snapshot.nodes.length - semanticNodes.length;
+
+  if (semanticNodes.length > 0) {
+    const clusters = categorizeSemantic(semanticNodes);
+    for (const cluster of clusters) {
+      result.push(makeClusterNode(cluster));
+    }
+  }
+
+  for (const tier of Object.keys(byTier)) {
+    if (tier === "semantic") continue;
+    const tierNodes = byTier[tier];
+    const proportion = tierNodes.length / Math.max(1, otherTotal);
+    const budget = Math.max(3, Math.round((MAX_NODES - result.length) * proportion));
+    tierNodes.sort((a, b) => {
+      if (a.dormant !== b.dormant) return a.dormant ? 1 : -1;
+      return (b.baseImportance + b.recallCount * 0.02) - (a.baseImportance + a.recallCount * 0.02);
+    });
+    result.push(...tierNodes.slice(0, budget));
+  }
+
+  return result.slice(0, MAX_NODES);
+}
 
 function distributeInRegion(region: THREE.Vector3, index: number, total: number): THREE.Vector3 {
   const phi = Math.acos(1 - 2 * (index + 0.5) / total);
   const theta = Math.PI * (1 + Math.sqrt(5)) * (index + 0.5);
   const r = 1.5 + ((index * 0.371) % 1) * 1.5;
+  return new THREE.Vector3(
+    region.x + r * Math.sin(phi) * Math.cos(theta),
+    region.y + r * Math.sin(phi) * Math.sin(theta),
+    region.z + r * Math.cos(phi),
+  );
+}
+
+function distributeClusters(region: THREE.Vector3, index: number, total: number, count: number): THREE.Vector3 {
+  const phi = Math.acos(1 - 2 * (index + 0.5) / total);
+  const theta = Math.PI * (1 + Math.sqrt(5)) * (index + 0.5);
+  const r = 1.8 + Math.min(2, count * 0.15);
   return new THREE.Vector3(
     region.x + r * Math.sin(phi) * Math.cos(theta),
     region.y + r * Math.sin(phi) * Math.sin(theta),
@@ -118,29 +198,7 @@ interface BrainNode {
   tier: Tier;
   color: THREE.Color;
   active: boolean;
-}
-
-function sampleNodes(snapshot: GraphSnapshot): GraphNode[] {
-  const byTier: Record<string, GraphNode[]> = {};
-  for (const n of snapshot.nodes) {
-    const t = n.tier || "ltm";
-    if (!byTier[t]) byTier[t] = [];
-    byTier[t].push(n);
-  }
-  const tiers = Object.keys(byTier);
-  const totalNodes = snapshot.nodes.length;
-  const result: GraphNode[] = [];
-  for (const tier of tiers) {
-    const tierNodes = byTier[tier];
-    const proportion = tierNodes.length / totalNodes;
-    const budget = Math.max(5, Math.round(MAX_NODES * proportion));
-    tierNodes.sort((a, b) => {
-      if (a.dormant !== b.dormant) return a.dormant ? 1 : -1;
-      return (b.baseImportance + b.recallCount * 0.02) - (a.baseImportance + a.recallCount * 0.02);
-    });
-    result.push(...tierNodes.slice(0, budget));
-  }
-  return result.slice(0, MAX_NODES);
+  isCluster: boolean;
 }
 
 function InstancedNeurons({ brain, onSelect, activeIds }: {
@@ -170,13 +228,18 @@ function InstancedNeurons({ brain, onSelect, activeIds }: {
       const active = node.active;
       const pulse = active ? 1 + Math.sin(t * 4 + phases[i]) * 0.15 : 1 + Math.sin(t * 0.5 + phases[i]) * 0.03;
       dummy.position.copy(node.basePosition);
-      dummy.scale.setScalar(node.radius * pulse * 2);
+      const scale = node.isCluster ? node.radius * pulse * 3 : node.radius * pulse * 2;
+      dummy.scale.setScalar(scale);
       dummy.rotation.y = t * (active ? 0.01 : 0.003) + phases[i];
       dummy.rotation.x = t * 0.0015 + phases[i] * 0.5;
       dummy.updateMatrix();
       meshRef.current.setMatrixAt(i, dummy.matrix);
       const isDormant = node.data.dormant;
-      colorObj.set(isDormant ? "#444450" : node.color);
+      if (node.isCluster) {
+        colorObj.set(node.color);
+      } else {
+        colorObj.set(isDormant ? "#444450" : node.color);
+      }
       meshRef.current.setColorAt(i, colorObj);
     }
     meshRef.current.instanceMatrix.needsUpdate = true;
@@ -338,9 +401,10 @@ interface SceneProps {
   setSelected: (n: GraphNode | null) => void;
   activeIds: string[];
   visibleNodes: GraphNode[];
+  semanticClusters: SemanticCluster[];
 }
 
-function Scene({ snapshot, selected, setSelected, activeIds, visibleNodes }: SceneProps) {
+function Scene({ snapshot, selected, setSelected, activeIds, visibleNodes, semanticClusters }: SceneProps) {
   const brain = useMemo<BrainNode[]>(() => {
     const tierCounts: Record<string, number> = {};
     const tierIndices: Record<string, number> = {};
@@ -353,10 +417,15 @@ function Scene({ snapshot, selected, setSelected, activeIds, visibleNodes }: Sce
 
       const region = TIER_REGIONS[tier] || TIER_REGIONS.ltm;
       const total = Math.max(1, tierCounts[tier] + 1);
-      const pos = distributeInRegion(region, idx, total);
+      const cluster = isClusterNode(node);
+      const pos = cluster
+        ? distributeClusters(region, idx, total, parseInt(node.recallCount?.toString() || "1"))
+        : distributeInRegion(region, idx, total);
 
       const importance = node.baseImportance + (node.recallCount || 0) * 0.02;
-      const radius = Math.max(0.15, 0.2 + importance * 0.35);
+      const radius = cluster
+        ? Math.max(0.35, 0.4 + importance * 0.4)
+        : Math.max(0.15, 0.2 + importance * 0.35);
 
       return {
         data: node,
@@ -366,6 +435,7 @@ function Scene({ snapshot, selected, setSelected, activeIds, visibleNodes }: Sce
         tier,
         color: new THREE.Color(TIER_COLORS[tier] || TIER_COLORS.ltm),
         active: false,
+        isCluster: cluster,
       };
     });
   }, [visibleNodes]);
@@ -398,6 +468,22 @@ function Scene({ snapshot, selected, setSelected, activeIds, visibleNodes }: Sce
 
       <EdgeSegments brain={brain} snapshot={snapshot} activeIds={activeIds} />
       <InstancedNeurons brain={brain} onSelect={setSelected} activeIds={activeIds} />
+
+      {brain.filter(b => b.isCluster).map((b) => (
+        <Text
+          key={b.data.id}
+          position={[b.basePosition.x, b.basePosition.y + 1.2, b.basePosition.z]}
+          fontSize={0.35}
+          color={TIER_COLORS.semantic}
+          anchorX="center"
+          anchorY="middle"
+          outlineWidth={0.03}
+          outlineColor="#08080c"
+          maxWidth={6}
+        >
+          {`${b.data.label}\n(${b.data.recallCount})`}
+        </Text>
+      ))}
 
       {selectedBrain && (
         <Html position={[selectedBrain.basePosition.x, selectedBrain.basePosition.y + 1, selectedBrain.basePosition.z]} center>
@@ -493,6 +579,137 @@ function Row({ label, value, color }: { label: string; value: string; color?: st
   );
 }
 
+function CategoryTreePanel({ cluster, onClose, onNodeSelect }: {
+  cluster: SemanticCluster;
+  onClose: () => void;
+  onNodeSelect: (node: GraphNode) => void;
+}) {
+  const [expandedSubs, setExpandedSubs] = useState<Set<string>>(new Set());
+  const [expandedSubSubs, setExpandedSubSubs] = useState<Set<string>>(new Set());
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+
+  const toggleSub = (id: string) => {
+    const next = new Set(expandedSubs);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setExpandedSubs(next);
+  };
+  const toggleSubSub = (id: string) => {
+    const next = new Set(expandedSubSubs);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setExpandedSubSubs(next);
+  };
+  const toggleNodeList = (id: string) => {
+    const next = new Set(expandedNodes);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setExpandedNodes(next);
+  };
+
+  return (
+    <div className="glass p-4 max-h-[560px] overflow-y-auto">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <span className="chip chip-gold text-xs">Semantic Cluster</span>
+          <div className="text-sm font-mono font-bold text-[var(--gold)] mt-1">{cluster.name}</div>
+        </div>
+        <button onClick={onClose} className="text-xs text-[var(--text-dim)] hover:text-[var(--red)]">✕</button>
+      </div>
+
+      <div className="text-xs text-[var(--text-dim)] mb-3">
+        {cluster.count} neurons · {cluster.subCategories.length} sub-categories
+      </div>
+
+      <div className="space-y-1">
+        {cluster.subCategories.map((sub: SemanticSubCategory) => (
+          <div key={sub.id}>
+            <button
+              onClick={() => toggleSub(sub.id)}
+              className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-[var(--surface)] transition-colors text-left"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[var(--text-dim)]">{expandedSubs.has(sub.id) ? "▼" : "▶"}</span>
+                <span className="text-xs font-mono font-bold text-[var(--text-bright)]">{sub.name}</span>
+                {sub.subSubCategories.length > 0 && (
+                  <span className="text-xs text-[var(--text-dim)]">· {sub.subSubCategories.length} groups</span>
+                )}
+              </div>
+              <span className="text-xs font-mono text-[var(--gold)]">{sub.count}</span>
+            </button>
+
+            {expandedSubs.has(sub.id) && (
+              <div className="ml-4 mt-0.5 space-y-0.5">
+                {sub.subSubCategories.length > 0 ? (
+                  sub.subSubCategories.map((subSub: SemanticSubSubCategory) => (
+                    <div key={subSub.id}>
+                      <button
+                        onClick={() => toggleSubSub(subSub.id)}
+                        className="w-full flex items-center justify-between px-2 py-1 rounded-lg hover:bg-[var(--surface)] transition-colors text-left"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-[var(--text-dim)]">{expandedSubSubs.has(subSub.id) ? "▼" : "▶"}</span>
+                          <span className="text-xs font-mono text-[var(--text-dim)]">{subSub.name}</span>
+                        </div>
+                        <span className="text-xs font-mono text-[var(--text-dim)]">{subSub.count}</span>
+                      </button>
+
+                      {expandedSubSubs.has(subSub.id) && (
+                        <div className="ml-4 space-y-0.5">
+                          <button
+                            onClick={() => toggleNodeList(subSub.id)}
+                            className="w-full text-left px-2 py-1 text-xs text-[var(--cyan)] hover:text-[var(--text-bright)] transition-colors"
+                          >
+                            {expandedNodes.has(subSub.id) ? "▼" : "▶"} Show nodes ({subSub.nodes.length})
+                          </button>
+                          {expandedNodes.has(subSub.id) && (
+                            <div className="ml-2 space-y-0.5 max-h-40 overflow-y-auto">
+                              {subSub.nodes.map((n) => (
+                                <button
+                                  key={n.id}
+                                  onClick={() => onNodeSelect(n as unknown as GraphNode)}
+                                  className="block w-full text-left px-2 py-1 text-xs font-mono text-[var(--text-dim)] hover:text-[var(--cyan)] hover:bg-[var(--surface)] rounded truncate transition-colors"
+                                  title={n.content}
+                                >
+                                  {n.label}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <>
+                    <button
+                      onClick={() => toggleNodeList(sub.id)}
+                      className="w-full text-left px-2 py-1 text-xs text-[var(--cyan)] hover:text-[var(--text-bright)] transition-colors"
+                    >
+                      {expandedNodes.has(sub.id) ? "▼" : "▶"} Show nodes ({sub.nodes.length})
+                    </button>
+                    {expandedNodes.has(sub.id) && (
+                      <div className="ml-2 space-y-0.5 max-h-48 overflow-y-auto">
+                        {sub.nodes.map((n) => (
+                          <button
+                            key={n.id}
+                            onClick={() => onNodeSelect(n as unknown as GraphNode)}
+                            className="block w-full text-left px-2 py-1 text-xs font-mono text-[var(--text-dim)] hover:text-[var(--cyan)] hover:bg-[var(--surface)] rounded truncate transition-colors"
+                            title={n.content}
+                          >
+                            {n.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function StatBar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
   const pct = max > 0 ? (value / max) * 100 : 0;
   return (
@@ -515,6 +732,7 @@ export function NeuralGraph() {
   const [selected, setSelected] = useState<GraphNode | null>(null);
   const [showStats, setShowStats] = useState(true);
   const [activeIds, setActiveIds] = useState<string[]>([]);
+  const [selectedCluster, setSelectedCluster] = useState<SemanticCluster | null>(null);
 
   const fetchGraph = async () => {
     try {
@@ -530,6 +748,13 @@ export function NeuralGraph() {
 
   useEffect(() => { fetchGraph(); }, []);
 
+  const semanticClusters = useMemo<SemanticCluster[]>(() => {
+    if (!snapshot) return [];
+    const semanticNodes = snapshot.nodes.filter(n => n.tier === "semantic");
+    if (semanticNodes.length === 0) return [];
+    return categorizeSemantic(semanticNodes as unknown as Parameters<typeof categorizeSemantic>[0]);
+  }, [snapshot]);
+
   const visibleNodes = useMemo(() => {
     if (!snapshot) return [];
     return sampleNodes(snapshot);
@@ -537,6 +762,27 @@ export function NeuralGraph() {
 
   const handleSelect = (node: GraphNode | null) => {
     if (!node) { handleClose(); return; }
+    if (isClusterNode(node)) {
+      const cluster = semanticClusters.find(c => c.id === node.id);
+      if (cluster) {
+        setSelectedCluster(cluster);
+        setSelected(null);
+        setActiveIds(cluster.nodeIds.slice(0, 50));
+      }
+      return;
+    }
+    setSelectedCluster(null);
+    setSelected(node);
+    const connected = new Set<string>([node.id]);
+    for (const rel of snapshot?.relations || []) {
+      if (rel.source === node.id) connected.add(rel.target);
+      if (rel.target === node.id) connected.add(rel.source);
+    }
+    setActiveIds(Array.from(connected));
+  };
+
+  const handleNodeFromTree = (node: GraphNode) => {
+    setSelectedCluster(null);
     setSelected(node);
     const connected = new Set<string>([node.id]);
     for (const rel of snapshot?.relations || []) {
@@ -548,6 +794,7 @@ export function NeuralGraph() {
 
   const handleClose = () => {
     setSelected(null);
+    setSelectedCluster(null);
     setActiveIds([]);
   };
 
@@ -628,6 +875,7 @@ export function NeuralGraph() {
                   setSelected={handleSelect}
                   activeIds={activeIds}
                   visibleNodes={visibleNodes}
+                  semanticClusters={semanticClusters}
                 />
               </Suspense>
             </Canvas>
@@ -653,11 +901,21 @@ export function NeuralGraph() {
         </div>
 
         <div className="space-y-3">
-          <DetailPanel
-            selected={selected}
-            onClose={handleClose}
-            pathwayCount={activeIds.length}
-          />
+          {selectedCluster && (
+            <CategoryTreePanel
+              cluster={selectedCluster}
+              onClose={handleClose}
+              onNodeSelect={handleNodeFromTree}
+            />
+          )}
+
+          {!selectedCluster && (
+            <DetailPanel
+              selected={selected}
+              onClose={handleClose}
+              pathwayCount={activeIds.length}
+            />
+          )}
 
           {showStats && stats && (
             <div className="glass p-4">
