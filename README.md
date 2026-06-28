@@ -53,7 +53,7 @@ Blog-Forge is the personal blog for the Forge ecosystem, deployed at [kc.kevcspo
 | 📰 **Blog Feed** | Blog-style feed showing posts + project updates, sorted by tier then date |
 | ⭐ **Post Tiering** | `featured` (★ badge) · `standard` · `archived` (excluded from feed) |
 | 📁 **Foldertab Navbar** | Rounded foldertab styling with underglow (Blog · About · AI · Tutorials · CMS) |
-| 📖 **Project Detail Pages** | Left navigation with IntersectionObserver scroll-spy |
+| 📖 **Project Detail Pages** | Android-docs-style section switcher with URL hash sync (not scroll-spy) |
 | 🧠 **3D Neural Memory Graph** | Three.js + R3F — 6 brain regions, neurons by type, synapse animations |
 | 🤖 **AI CMS** | Login + dashboard with post management + AI generation |
 | 📅 **Daily AI Posts** | Cron endpoint (`0 9 * * *`) generates blog posts via OpenRouter |
@@ -82,6 +82,7 @@ Blog-Forge is the personal blog for the Forge ecosystem, deployed at [kc.kevcspo
 |-----|-------------|
 | **Content** | Post list, manual editor, AI generation |
 | **Neural Graph** | 3D brain visualization with recall query activation |
+| **WebChat** | Embedded WebChat-Forge iframe (gated behind CMS login) |
 
 **Auth**: CMS admin token · **Cron**: `vercel.json` `0 9 * * *`
 
@@ -129,10 +130,26 @@ Features: synapse pulse animations, dormant node dimming, star field, OrbitContr
 ## 🙏 Credits
 
 - [Brain-Forge](https://github.com/kevinc1934-cpu/Brain-Forge) — Memory graph snapshot data
+- [Headless-Forge](https://github.com/kevinc1934-cpu/Headless-Forge) — Unified headless CLI
+- [WebChat-Forge](https://github.com/kevinc1934-cpu/WebChat-Forge) — Embedded in CMS dashboard
 - Three.js + React Three Fiber — 3D visualization
 - Supabase — Database backend
 - Vercel — Hosting + deployment
 - OpenRouter — AI content generation
+
+---
+
+## 🔗 Related Forge Ecosystem
+
+| Repository | Description |
+|------------|-------------|
+| **[Brain-Forge](https://github.com/kevinc1934-cpu/Brain-Forge)** | Core 6-tier cognitive memory engine |
+| **[Headless-Forge](https://github.com/kevinc1934-cpu/Headless-Forge)** | Unified headless CLI — local control point |
+| **[WebChat-Forge](https://github.com/kevinc1934-cpu/WebChat-Forge)** | Serverless web chat on Vercel |
+| **[Chat-Forge](https://github.com/kevinc1934-cpu/Chat-Forge)** | WPF/.NET 8 desktop app |
+| **[Android-Forge](https://github.com/kevinc1934-cpu/Android-Forge)** | Termux thin client + Vulkan trainer |
+| **[Training-Forge](https://github.com/kevinc1934-cpu/Training-Forge)** | OpenVINO + Brain-Forge fine-tuning |
+| **[Business-Forge](https://github.com/kevinc1934-cpu/Business-Forge)** | AI business platform |
 
 ---
 

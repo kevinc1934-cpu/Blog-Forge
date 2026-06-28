@@ -188,19 +188,23 @@ export const projects: Project[] = [
         label: "Storage Backends",
         icon: "💾",
         title: "Storage Backends",
-        description: "R2, Fast.io, Supabase, and local JSON graph.",
+        description: "Local JSON graph + cloud backends (R2, Fast.io, Supabase, LanceDB, Mem0, Supermemory, MemoryLake).",
         content: [
           {
-            body: "Brain-Forge supports multiple storage backends. The default is a local JSON graph file, with optional cloud backends for durability and distribution.",
+            body: "Brain-Forge supports 8 storage backends. The default is a local JSON graph file (source-of-truth), with optional cloud backends for durability, vector search, and distribution.",
           },
           {
             table: {
-              headers: ["Backend", "Type", "Use Case", "Free Tier"],
+              headers: ["Backend", "Type", "Use Case", "Tier"],
               rows: [
-                ["Local JSON", "File", "Default — fast, no setup", "Unlimited"],
-                ["Cloudflare R2", "S3-compatible", "Durable backups, large objects", "10GB / 1M Class A ops / zero egress"],
-                ["Fast.io", "MCP", "Dataset distribution to Android-Forge", "Free tier"],
-                ["Supabase", "Postgres", "Structured queries, RLS", "500MB DB"],
+                ["Local JSON", "File (graph.json)", "Default — fast, no setup, source-of-truth", "1419 nodes · 7467 relations"],
+                ["LanceDB", "Local vector DB", "Embedding index on disk for semantic search", "Free"],
+                ["Supabase", "Postgres + Realtime", "Cloud persistence, RLS, structured queries", "500MB DB free"],
+                ["Cloudflare R2", "S3-compatible", "Durable backups, large objects, zero egress", "10GB / 1M Class A ops"],
+                ["Fast.io", "AI-searchable MCP", "Dataset distribution to Android-Forge", "Free tier"],
+                ["Mem0", "External memory API", "Optional cloud memory service integration", "API-based"],
+                ["Supermemory", "External memory API", "Optional cloud memory service integration", "API-based"],
+                ["MemoryLake", "External memory API", "Optional cloud memory service integration", "API-based"],
               ],
             },
           },
@@ -246,7 +250,7 @@ export const projects: Project[] = [
         label: "Status",
         icon: "📊",
         title: "Current Status",
-        description: "Live metrics and roadmap.",
+        description: "Live metrics, models, and roadmap.",
         content: [
           {
             table: {
@@ -256,6 +260,8 @@ export const projects: Project[] = [
                 ["Graph relations", "7,467"],
                 ["MCP tools", "57"],
                 ["REST endpoints", "79"],
+                ["Available models", "33 (10 providers)"],
+                ["Storage backends", "8 (JSON, LanceDB, Supabase, R2, Fast.io, Mem0, Supermemory, MemoryLake)"],
                 ["Stress test assertions", "165 (all passing)"],
                 ["Datasets ingested", "7 research repos"],
                 ["Training examples", "3,274"],
@@ -264,12 +270,33 @@ export const projects: Project[] = [
             },
           },
           {
+            heading: "Available Models (33 across 10 providers)",
+            list: [
+              "**OpenAI** — GPT-4o Mini, GPT-4o, GPT-5, GPT-5 Mini",
+              "**Anthropic** — Claude 4 Sonnet, Claude 4 Opus, Claude 4.5 Sonnet",
+              "**Google** — Gemini 2.5 Pro, Gemini 2.5 Flash, Gemma 4 27B, Gemma 3 27B",
+              "**Meta** — Llama 4 Maverick (1M ctx), Llama 4 Scout (10M ctx), Llama 4 70B",
+              "**Qwen** — Qwen 3 235B MoE, Qwen 3 30B MoE, Qwen 2.5 Coder 32B, Qwen 2.5 72B",
+              "**DeepSeek** — DeepSeek R1, DeepSeek V3",
+              "**Mistral** — Mistral Large 2, Codestral 25.01",
+              "**Microsoft** — Phi-4, Phi-4 Mini",
+              "**xAI** — Grok 3, Grok 3 Mini",
+              "**Vultr** — GLM-5.1 FP8 (self-hosted)",
+              "**Ollama** — Llama 3.3, Qwen 2.5, Gemma 3, DeepSeek R1, Phi-4 (local, free)",
+              "**Termux** — Local LLM (Android, mobile)",
+            ],
+          },
+          {
+            heading: "Setup & Installation",
+            body: "Single-command install with first-run API key onboarding wizard. The wizard prompts for each key with a direct link to obtain it, and writes to a gitignored .env file.",
+            code: { language: "bash", code: "# Install\nbash scripts/install.sh brain-forge  # Linux/macOS/Termux\n.\\scripts\\install.ps1 brain-forge       # Windows\n\n# First-run setup wizard\nnpm run setup\n# Prompts for: OpenRouter, Gemini, Groq, Cloudflare, Vercel, Supabase keys\n# Each with a link to obtain the key\n\n# Start\nnpm run headless  # Headless CLI (port 8198)\nnpm run start      # REST API (port 8199)\nnpm run mcp        # MCP server (stdio)" },
+          },
+          {
             heading: "Roadmap",
             list: [
-              "Evaluate khoj-ai/khoj for self-hosted search patterns",
-              "Evaluate ItsWambarYT/ai-brain for auto-build-from-git-repos pattern",
-              "Cognee and Mapify integration for expanded knowledge graph",
               "Supabase Realtime for live graph sync across instances",
+              "Cognee and Mapify integration for expanded knowledge graph",
+              "Evaluate khoj-ai/khoj for self-hosted search patterns",
             ],
           },
         ],
@@ -583,16 +610,28 @@ export const projects: Project[] = [
         description: "How two LLM backends are switched.",
         content: [
           {
-            body: "The chat supports two backends that can be switched per-message. Each backend streams tokens via SSE for real-time output.",
+            body: "The chat supports two backends that can be switched per-message. Each backend streams tokens via SSE for real-time output. The Kilo backend supports 33 models across 10 providers via OpenRouter.",
           },
           {
             table: {
-              headers: ["Backend", "Provider", "Model", "Use Case"],
+              headers: ["Backend", "Provider", "Models", "Use Case"],
               rows: [
-                ["Kilo", "OpenRouter", "gpt-4o-mini", "High quality, cloud"],
+                ["Kilo", "OpenRouter (33 models)", "GPT-5, Claude 4.5, Gemini 2.5, Qwen 3, DeepSeek R1, GLM-5.1, +28 more", "High quality, cloud, model steering"],
                 ["Termux", "llama.cpp", "Local GGUF", "Private, offline, mobile"],
+                ["Ollama", "Local", "Llama 3.3, Qwen 2.5, Gemma 3, DeepSeek R1, Phi-4", "Free, local, no API key"],
               ],
             },
+          },
+          {
+            heading: "Deployment Modes",
+            list: [
+              "**Local mode** — References Headless-Forge for direct memory, model launching (OpenVINO + llama.cpp), Termux device management, and direct filesystem/terminal operations",
+              "**Serverless mode** — Deployed to Vercel, tunnels through Brain-Forge REST API for memory and system access",
+            ],
+          },
+          {
+            heading: "Model Steering",
+            body: "The /btw command allows real-time model switching and parameter adjustment without restarting: /btw model=anthropic/claude-4.5-sonnet temp=0.5 max=4096",
           },
           {
             heading: "SSE Streaming",
@@ -930,7 +969,7 @@ export const projects: Project[] = [
         content: [
           {
             heading: "Admin Panel",
-            body: "Login-protected dashboard with post list, AI generation trigger, and manual editor. Two tabs: Content and Neural Graph.",
+            body: "Login-protected dashboard with post list, AI generation trigger, and manual editor. Three tabs: Content, Neural Graph, and WebChat.",
           },
           {
             heading: "AI Content Generation",
@@ -939,6 +978,10 @@ export const projects: Project[] = [
           {
             heading: "Supabase Integration",
             body: "Blog posts and project updates are stored in Supabase (blog_posts + project_updates tables with RLS). The data layer reads from Supabase first, falling back to JSON files. ISR (5-min revalidation) with on-demand revalidatePath ensures content freshness.",
+          },
+          {
+            heading: "WebChat Integration",
+            body: "The CMS dashboard includes a WebChat tab that embeds WebChat-Forge in an iframe, gated behind the CMS login. Auto-detects localhost vs production URL. Accessible only when authenticated.",
           },
         ],
       },
@@ -1024,7 +1067,7 @@ export const projects: Project[] = [
         content: [
           {
             heading: "Single Process, Multiple Capabilities",
-            body: "Headless-Forge combines memory engine (direct import), system bridge (direct fs/terminal), model launcher (OpenVINO + llama.cpp + Termux), knowledge hub, MCP server, and the WebChat frontend — all in one process on port 8198.",
+            body: "Headless-Forge combines memory engine (direct import), system bridge (direct fs/terminal), model launcher (OpenVINO + llama.cpp + Termux), knowledge hub, MCP server, and the WebChat frontend — all in one process on port 8198. Supports 33 models across 10 providers via OpenRouter, plus local Ollama models.",
           },
           {
             table: {
@@ -1172,8 +1215,14 @@ export const projects: Project[] = [
                 ["Mobile", "Termux (Python thin client)"],
                 ["Protocol", "SSE + REST + MCP stdio"],
                 ["Frontend", "Vanilla JS + Neon Noir CSS"],
+                ["Models", "33 across 10 providers + Ollama local"],
               ],
             },
+          },
+          {
+            heading: "Setup & Installation",
+            body: "Single-command install with first-run API key onboarding wizard.",
+            code: { language: "bash", code: "# Install\nbash scripts/install.sh headless-forge  # Linux/macOS/Termux\n.\\scripts\\install.ps1 headless-forge     # Windows\n\n# First-run setup wizard\nnpm run setup\n# Prompts for: OpenRouter, System bridge token, WebChat root, Termux URL\n# Each with a link to obtain the key\n\n# Start\nnpm start              # Headless CLI (port 8198)\nnpx tsx headless-cli.ts --mcp  # MCP server mode" },
           },
         ],
       },
