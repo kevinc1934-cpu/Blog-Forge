@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { NeuralGraph } from "./neural-graph";
 
 interface Post {
   slug: string;
@@ -14,12 +15,15 @@ interface Post {
   accent?: string;
 }
 
+type Tab = "content" | "neural";
+
 export default function AdminDashboard() {
   const [token, setToken] = useState("");
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [genResult, setGenResult] = useState<string>("");
+  const [activeTab, setActiveTab] = useState<Tab>("content");
   const router = useRouter();
 
   useEffect(() => {
@@ -111,84 +115,114 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="page-in max-w-4xl mx-auto px-6 py-12">
+    <div className="page-in max-w-7xl mx-auto px-6 py-12">
       <div className="flex items-center justify-between mb-8">
         <div>
           <div className="chip chip-gold mb-3">CMS Dashboard</div>
           <h1 className="font-display font-800 text-3xl gradient-gold">Content Management</h1>
         </div>
-        <button onClick={logout} className="btn-chip text-sm text-[var(--text-dim)] hover:text-[var(--red)] transition-colors">
-          Logout
-        </button>
-      </div>
-
-      {/* AI Generation Panel */}
-      <div className="glass p-6 mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-display font-700 text-lg text-[var(--text-bright)]">AI Content Generation</h2>
-          <span className="chip chip-purple">OpenAI GPT-4o</span>
-        </div>
-        <p className="text-sm text-[var(--text-dim)] mb-4">
-          Generate a new blog post using AI. The post will be committed to GitHub and deployed automatically.
-        </p>
-        <button
-          onClick={generatePost}
-          disabled={generating}
-          className="px-5 py-2.5 bg-[var(--purple)] text-white font-medium rounded-xl hover:opacity-90 transition-opacity disabled:opacity-40"
-        >
-          {generating ? "Generating..." : "Generate New Post"}
-        </button>
-        {genResult && (
-          <p className="mt-3 text-sm text-[var(--cyan)] font-mono">{genResult}</p>
-        )}
-      </div>
-
-      {/* Posts List */}
-      <div className="glass p-6">
-        <h2 className="font-display font-700 text-lg text-[var(--text-bright)] mb-4">
-          Blog Posts ({posts.length})
-        </h2>
-
-        {posts.length === 0 ? (
-          <p className="text-[var(--text-dim)] text-sm">No posts yet. Generate one above or create manually.</p>
-        ) : (
-          <div className="space-y-3">
-            {posts.map((post) => (
-              <div key={post.slug} className="flex items-center justify-between p-4 bg-[var(--surface)] rounded-xl border border-[var(--border)] hover:border-[var(--border-bright)] transition-colors">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={`chip chip-${post.accent || "cyan"}`}>{post.category}</span>
-                    {post.isAiGenerated && <span className="chip chip-purple">AI</span>}
-                    <span className="text-xs text-[var(--text-dim)] font-mono">{post.date}</span>
-                  </div>
-                  <h3 className="font-medium text-[var(--text-bright)] truncate">{post.title}</h3>
-                  <p className="text-sm text-[var(--text-dim)] truncate">{post.description}</p>
-                </div>
-                <div className="flex gap-2 ml-4">
-                  <Link
-                    href={`/blog/${post.slug}`}
-                    className="px-3 py-1.5 text-xs border border-[var(--border)] rounded-lg hover:border-[var(--cyan)] hover:text-[var(--cyan)] transition-colors"
-                  >
-                    View
-                  </Link>
-                  <button
-                    onClick={() => deletePost(post.slug)}
-                    className="px-3 py-1.5 text-xs border border-[var(--border)] rounded-lg hover:border-[var(--red)] hover:text-[var(--red)] transition-colors"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))}
+        <div className="flex items-center gap-3">
+          <div className="flex gap-1 p-1 bg-[var(--surface)] rounded-xl border border-[var(--border)]">
+            <button
+              onClick={() => setActiveTab("content")}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                activeTab === "content"
+                  ? "bg-[var(--gold)] text-[#1a1006]"
+                  : "text-[var(--text-dim)] hover:text-[var(--text-bright)]"
+              }`}
+            >
+              Content
+            </button>
+            <button
+              onClick={() => setActiveTab("neural")}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
+                activeTab === "neural"
+                  ? "bg-[var(--cyan)] text-[#08080c]"
+                  : "text-[var(--text-dim)] hover:text-[var(--text-bright)]"
+              }`}
+            >
+              Neural Graph
+            </button>
           </div>
-        )}
+          <button onClick={logout} className="btn-chip text-sm text-[var(--text-dim)] hover:text-[var(--red)] transition-colors">
+            Logout
+          </button>
+        </div>
       </div>
 
-      {/* Manual Post Creator */}
-      <div className="glass p-6 mt-8">
-        <h2 className="font-display font-700 text-lg text-[var(--text-bright)] mb-4">Create Post Manually</h2>
-        <ManualPostEditor token={token} onCreated={() => loadPosts(token)} />
-      </div>
+      {activeTab === "neural" ? (
+        <NeuralGraph />
+      ) : (
+        <>
+          {/* AI Generation Panel */}
+          <div className="glass p-6 mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display font-700 text-lg text-[var(--text-bright)]">AI Content Generation</h2>
+              <span className="chip chip-purple">OpenAI GPT-4o</span>
+            </div>
+            <p className="text-sm text-[var(--text-dim)] mb-4">
+              Generate a new blog post using AI. The post will be committed to GitHub and deployed automatically.
+            </p>
+            <button
+              onClick={generatePost}
+              disabled={generating}
+              className="px-5 py-2.5 bg-[var(--purple)] text-white font-medium rounded-xl hover:opacity-90 transition-opacity disabled:opacity-40"
+            >
+              {generating ? "Generating..." : "Generate New Post"}
+            </button>
+            {genResult && (
+              <p className="mt-3 text-sm text-[var(--cyan)] font-mono">{genResult}</p>
+            )}
+          </div>
+
+          {/* Posts List */}
+          <div className="glass p-6">
+            <h2 className="font-display font-700 text-lg text-[var(--text-bright)] mb-4">
+              Blog Posts ({posts.length})
+            </h2>
+
+            {posts.length === 0 ? (
+              <p className="text-[var(--text-dim)] text-sm">No posts yet. Generate one above or create manually.</p>
+            ) : (
+              <div className="space-y-3">
+                {posts.map((post) => (
+                  <div key={post.slug} className="flex items-center justify-between p-4 bg-[var(--surface)] rounded-xl border border-[var(--border)] hover:border-[var(--border-bright)] transition-colors">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className={`chip chip-${post.accent || "cyan"}`}>{post.category}</span>
+                        {post.isAiGenerated && <span className="chip chip-purple">AI</span>}
+                        <span className="text-xs text-[var(--text-dim)] font-mono">{post.date}</span>
+                      </div>
+                      <h3 className="font-medium text-[var(--text-bright)] truncate">{post.title}</h3>
+                      <p className="text-sm text-[var(--text-dim)] truncate">{post.description}</p>
+                    </div>
+                    <div className="flex gap-2 ml-4">
+                      <Link
+                        href={`/blog/${post.slug}`}
+                        className="px-3 py-1.5 text-xs border border-[var(--border)] rounded-lg hover:border-[var(--cyan)] hover:text-[var(--cyan)] transition-colors"
+                      >
+                        View
+                      </Link>
+                      <button
+                        onClick={() => deletePost(post.slug)}
+                        className="px-3 py-1.5 text-xs border border-[var(--border)] rounded-lg hover:border-[var(--red)] hover:text-[var(--red)] transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Manual Post Creator */}
+          <div className="glass p-6 mt-8">
+            <h2 className="font-display font-700 text-lg text-[var(--text-bright)] mb-4">Create Post Manually</h2>
+            <ManualPostEditor token={token} onCreated={() => loadPosts(token)} />
+          </div>
+        </>
+      )}
     </div>
   );
 }
