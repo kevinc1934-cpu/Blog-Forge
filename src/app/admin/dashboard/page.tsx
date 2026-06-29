@@ -385,7 +385,7 @@ function BusinessDashboard() {
     const fetchAll = async () => {
       const base = window.location.hostname === "localhost"
         ? "http://localhost:3200"
-        : "https://api.kc-ai.com";
+        : "https://api.kevcspot.com";
       try {
         const [h, l, i] = await Promise.all([
           fetch(`${base}/api/health`).then(r => r.json()),
