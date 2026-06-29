@@ -73,6 +73,7 @@ async function Nav() {
           <FolderTab href="/" label="Blog" />
           <FolderTab href="/about" label="About" />
           <FolderTab href="/ai" label="AI" />
+          <FolderTab href="/services" label="Services" />
           <FolderTab href="/tutorials" label="Tutorials" />
           <FolderTab href="/admin" label="CMS" />
         </div>
@@ -112,6 +113,7 @@ function Footer() {
                 <li><Link href="/" className="text-sm text-[var(--text)] hover:text-[var(--gold-bright)] transition-colors">Blog</Link></li>
                 <li><Link href="/about" className="text-sm text-[var(--text)] hover:text-[var(--gold-bright)] transition-colors">About</Link></li>
                 <li><Link href="/ai/projects" className="text-sm text-[var(--text)] hover:text-[var(--gold-bright)] transition-colors">AI Projects</Link></li>
+                <li><Link href="/services" className="text-sm text-[var(--text)] hover:text-[var(--gold-bright)] transition-colors">Services & Pricing</Link></li>
                 <li><Link href="/ai/models" className="text-sm text-[var(--text)] hover:text-[var(--gold-bright)] transition-colors">AI Models</Link></li>
                 <li><Link href="/tutorials" className="text-sm text-[var(--text)] hover:text-[var(--gold-bright)] transition-colors">Tutorials</Link></li>
                 <li><Link href="/admin" className="text-sm text-[var(--text)] hover:text-[var(--gold-bright)] transition-colors">CMS Admin</Link></li>
